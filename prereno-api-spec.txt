@@ -1,0 +1,1321 @@
+# docs/api.yaml - OpenAPI 3.0 Specification for PreReno API
+openapi: 3.0.3
+info:
+  title: PreReno API
+  description: |
+    AI-powered home repair platform API. Handles job creation, contractor dispatch, 
+    payments, and real-time communication between homeowners, renters, landlords, and contractors.
+    
+    ## Authentication
+    Most endpoints require JWT token in Authorization header: `Bearer <token>`
+    
+    ## Rate Limits
+    - 100 requests per 15 minutes per IP
+    - Magic link endpoints: 5 requests per minute
+    
+    ## Error Responses
+    All endpoints return consistent error format:
+    ```json
+    {
+      "error": "Error message",
+      "details": ["Specific validation errors"],
+      "code": "ERROR_CODE"
+    }
+    ```
+  version: 1.0.0
+  contact:
+    name: PreReno API Support
+    email: support@prereno.app
+    url: https://prereno.app/support
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.prereno.app
+    description: Production server
+  - url: https://staging-api.prereno.app
+    description: Staging server
+  - url: http://localhost:3001
+    description: Development server
+
+paths:
+  /api/health:
+    get:
+      summary: Health check
+      description: Returns API server status and timestamp
+      tags:
+        - System
+      responses:
+        '200':
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  /api/auth/signup:
+    post:
+      summary: Create new user account
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+                - firstName
+                - lastName
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 8
+                firstName:
+                  type: string
+                lastName:
+                  type: string
+                role:
+                  type: string
+                  enum: [client, landlord, property_manager, contractor]
+                  default: client
+      responses:
+        '200':
+          description: Account created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Invalid input or email already exists
+
+  /api/auth/signin:
+    post:
+      summary: Sign in to existing account
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Signed in successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Invalid credentials
+
+  /api/jobs:
+    post:
+      summary: Create new repair job with AI analysis
+      tags:
+        - Jobs
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - title
+                - category
+                - address_id
+                - photos
+              properties:
+                title:
+                  type: string
+                  maxLength: 200
+                  example: Kitchen Faucet Replacement
+                description:
+                  type: string
+                  maxLength: 1000
+                category:
+                  type: string
+                  enum: [plumbing, electrical, paint, handyman, roof, hvac, flooring]
+                address_id:
+                  type: string
+                  format: uuid
+                renter_flag:
+                  type: boolean
+                  default: false
+                landlord_id:
+                  type: string
+                  format: uuid
+                rush_flag:
+                  type: boolean
+                  default: false
+                after_hours_flag:
+                  type: boolean
+                  default: false
+                photos:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                  maxItems: 5
+      responses:
+        '200':
+          description: Job created with AI analysis
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  job:
+                    $ref: '#/components/schemas/Job'
+                  pricing:
+                    $ref: '#/components/schemas/PricingBreakdown'
+                  ai_analysis:
+                    $ref: '#/components/schemas/AIAnalysis'
+        '400':
+          description: Invalid input or file upload error
+        '401':
+          description: Authentication required
+
+    get:
+      summary: List user's jobs
+      tags:
+        - Jobs
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, quoting, awaiting_accept, accepted, scheduled, in_progress, disputed, completed, cancelled]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: List of jobs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jobs:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Job'
+                  total:
+                    type: integer
+                  has_more:
+                    type: boolean
+
+  /api/jobs/{id}/book:
+    post:
+      summary: Book job and broadcast to contractors
+      tags:
+        - Jobs
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Job booked, offers sent to contractors
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Job booked successfully
+                  offers_sent:
+                    type: integer
+                    example: 12
+        '404':
+          description: Job not found
+        '400':
+          description: Job cannot be booked in current status
+
+  /api/offers/{token}/accept:
+    post:
+      summary: Accept job offer (magic link endpoint)
+      tags:
+        - Offers
+      parameters:
+        - name: token
+          in: path
+          required: true
+          description: JWT magic link token
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Offer accepted, payment intent created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  payment_intent_client_secret:
+                    type: string
+                    description: Stripe PaymentIntent client secret
+        '400':
+          description: Job no longer available or token expired
+        '401':
+          description: Invalid or expired token
+
+  /api/offers/{token}/counter:
+    post:
+      summary: Submit counter offer
+      tags:
+        - Offers
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - action
+                - counter_net_cents
+              properties:
+                action:
+                  type: string
+                  enum: [counter]
+                counter_net_cents:
+                  type: integer
+                  minimum: 1000
+                  description: Counter amount in cents
+      responses:
+        '200':
+          description: Counter offer submitted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  status:
+                    type: string
+                    enum: [auto_approved, pending_approval]
+                  new_price:
+                    type: integer
+                    description: New client price if auto-approved
+        '400':
+          description: Counter outside acceptable range
+
+  /api/offers/{token}/decline:
+    post:
+      summary: Decline job offer
+      tags:
+        - Offers
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Offer declined
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Offer declined
+
+  /api/payments/{job_id}/confirm:
+    post:
+      summary: Confirm payment intent
+      tags:
+        - Payments
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - payment_intent_id
+              properties:
+                payment_intent_id:
+                  type: string
+                  description: Stripe PaymentIntent ID
+      responses:
+        '200':
+          description: Payment confirmed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  status:
+                    type: string
+                    enum: [succeeded, failed]
+
+  /api/jobs/{id}/complete:
+    post:
+      summary: Mark job as complete (contractor only)
+      tags:
+        - Jobs
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                after_photos:
+                  type: array
+                  items:
+                    type: string
+                    description: URLs to after photos
+                notes:
+                  type: string
+                  maxLength: 1000
+      responses:
+        '200':
+          description: Job marked as complete
+        '404':
+          description: Job not found or unauthorized
+
+  /api/jobs/{id}/approve:
+    post:
+      summary: Approve completed job and release payment
+      tags:
+        - Jobs
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                rating:
+                  type: integer
+                  minimum: 1
+                  maximum: 5
+                comment:
+                  type: string
+                  maxLength: 500
+                tip_cents:
+                  type: integer
+                  minimum: 0
+      responses:
+        '200':
+          description: Job approved, payment released
+        '400':
+          description: No valid payment found
+
+  /api/approvals/{job_id}/landlord:
+    post:
+      summary: Landlord approval for renter job
+      tags:
+        - Approvals
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - action
+              properties:
+                action:
+                  type: string
+                  enum: [approve, request_changes, decline]
+                message:
+                  type: string
+                  maxLength: 500
+      responses:
+        '200':
+          description: Approval decision recorded
+
+  /api/admin/contractors/pending:
+    get:
+      summary: Get contractors pending verification
+      tags:
+        - Admin
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of pending contractors
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Contractor'
+        '403':
+          description: Admin access required
+
+  /api/admin/contractors/{id}/verify:
+    post:
+      summary: Verify or reject contractor
+      tags:
+        - Admin
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - verified
+              properties:
+                verified:
+                  type: boolean
+                notes:
+                  type: string
+      responses:
+        '200':
+          description: Contractor verification updated
+
+  /api/webhooks/stripe:
+    post:
+      summary: Stripe webhook endpoint
+      tags:
+        - Webhooks
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Stripe webhook payload
+      responses:
+        '200':
+          description: Webhook processed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  received:
+                    type: boolean
+                    example: true
+        '400':
+          description: Invalid webhook signature
+
+  /api/cost/zip/{zip}/category/{category}:
+    get:
+      summary: Get public cost estimate for area/category
+      tags:
+        - Public
+      parameters:
+        - name: zip
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{5}$'
+        - name: category
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [plumbing, electrical, paint, handyman, roof, hvac, flooring]
+      responses:
+        '200':
+          description: Cost estimation data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  zip:
+                    type: string
+                  category:
+                    type: string
+                  labor_rate_per_hour:
+                    type: number
+                    description: Hourly rate in dollars
+                  typical_range:
+                    type: object
+                    properties:
+                      min:
+                        type: number
+                      max:
+                        type: number
+        '404':
+          description: Cost data not available for this area
+
+  /api/metrics/track:
+    post:
+      summary: Track analytics event
+      tags:
+        - Analytics
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - event
+              properties:
+                event:
+                  type: string
+                  example: job_created
+                properties:
+                  type: object
+                  additionalProperties: true
+      responses:
+        '200':
+          description: Event tracked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tracked:
+                    type: boolean
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    AuthResponse:
+      type: object
+      properties:
+        user:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            email:
+              type: string
+              format: email
+        session:
+          type: object
+          properties:
+            access_token:
+              type: string
+            refresh_token:
+              type: string
+            expires_at:
+              type: integer
+
+    Job:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        client_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+          enum: [plumbing, electrical, paint, handyman, roof, hvac, flooring]
+        status:
+          type: string
+          enum: [draft, quoting, awaiting_accept, accepted, scheduled, in_progress, disputed, completed, cancelled]
+        photos:
+          type: array
+          items:
+            type: string
+            description: Photo URL
+        ai_tags:
+          type: array
+          items:
+            type: string
+        ai_scope_md:
+          type: string
+          description: Markdown formatted scope of work
+        ai_client_price_cents:
+          type: integer
+          description: Total price including margin (cents)
+        contractor_net_cents:
+          type: integer
+          description: Amount contractor receives (cents)
+        margin_pct:
+          type: number
+          format: float
+          description: Platform margin percentage
+        rush_flag:
+          type: boolean
+        after_hours_flag:
+          type: boolean
+        renter_flag:
+          type: boolean
+        city:
+          type: string
+        zip:
+          type: string
+        scheduled_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    PricingBreakdown:
+      type: object
+      properties:
+        labor_hours:
+          type: number
+          format: float
+        labor_cost_cents:
+          type: integer
+        material_cost_cents:
+          type: integer
+        base_cost_cents:
+          type: integer
+        adjusted_cost_cents:
+          type: integer
+          description: After rush/after-hours fees
+        client_price_cents:
+          type: integer
+          description: Final price with margin
+        contractor_net_cents:
+          type: integer
+        margin_pct:
+          type: number
+          format: float
+
+    AIAnalysis:
+      type: object
+      properties:
+        tags:
+          type: array
+          items:
+            type: string
+          description: Detected issues/defects
+        confidence:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+        scope:
+          type: string
+          description: Generated work scope
+
+    Contractor:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        company:
+          type: string
+        license_number:
+          type: string
+        license_state:
+          type: string
+        verified:
+          type: boolean
+        rating:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 5
+        completed_jobs:
+          type: integer
+        insurance_expires_on:
+          type: string
+          format: date
+        created_at:
+          type: string
+          format: date-time
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Human-readable error message
+        details:
+          type: array
+          items:
+            type: string
+          description: Detailed validation errors
+        code:
+          type: string
+          description: Machine-readable error code
+
+tags:
+  - name: System
+    description: Health checks and system status
+  - name: Authentication
+    description: User registration and login
+  - name: Jobs
+    description: Job creation, management, and completion
+  - name: Offers
+    description: Contractor offer management
+  - name: Payments
+    description: Payment processing and escrow
+  - name: Approvals
+    description: Landlord and admin approvals
+  - name: Admin
+    description: Administrative functions
+  - name: Webhooks
+    description: External service webhooks
+  - name: Public
+    description: Public endpoints (no auth required)
+  - name: Analytics
+    description: Event tracking and metrics
+
+---
+
+# server/src/scripts/seed.ts - Database Seed Script
+import { createClient } from '@supabase/supabase-js';
+import crypto from 'crypto';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+const supabase = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+const DEMO_PASSWORD = 'demo123!';
+
+async function seedDatabase() {
+  console.log('🌱 Starting database seed...');
+
+  try {
+    // Create demo users
+    console.log('👤 Creating demo users...');
+    
+    const demoUsers = [
+      {
+        email: 'client@prereno.demo',
+        password: DEMO_PASSWORD,
+        role: 'client',
+        firstName: 'Sarah',
+        lastName: 'Johnson'
+      },
+      {
+        email: 'contractor@prereno.demo', 
+        password: DEMO_PASSWORD,
+        role: 'contractor',
+        firstName: 'Mike',
+        lastName: 'Rodriguez'
+      },
+      {
+        email: 'landlord@prereno.demo',
+        password: DEMO_PASSWORD,
+        role: 'landlord',
+        firstName: 'David',
+        lastName: 'Chen'
+      },
+      {
+        email: 'admin@prereno.demo',
+        password: DEMO_PASSWORD,
+        role: 'admin',
+        firstName: 'Admin',
+        lastName: 'User'
+      }
+    ];
+
+    const createdUsers = [];
+    
+    for (const user of demoUsers) {
+      const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
+        email: user.email,
+        password: user.password,
+        email_confirm: true
+      });
+
+      if (authError) {
+        console.warn(`User ${user.email} might already exist:`, authError.message);
+        continue;
+      }
+
+      if (authUser.user) {
+        // Create profile
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .upsert({
+            id: authUser.user.id,
+            role: user.role,
+            first_name: user.firstName,
+            last_name: user.lastName
+          });
+
+        if (profileError) {
+          console.error(`Profile creation error for ${user.email}:`, profileError);
+        } else {
+          createdUsers.push({ ...user, id: authUser.user.id });
+          console.log(`✅ Created user: ${user.email}`);
+        }
+      }
+    }
+
+    // Create demo addresses
+    console.log('🏠 Creating demo addresses...');
+    
+    const clientUser = createdUsers.find(u => u.role === 'client');
+    const landlordUser = createdUsers.find(u => u.role === 'landlord');
+    
+    if (clientUser) {
+      const { data: address } = await supabase
+        .from('addresses')
+        .insert({
+          profile_id: clientUser.id,
+          line1: '123 Main Street',
+          line2: 'Apt 4B',
+          city: 'Austin',
+          state: 'TX',
+          zip: '78701',
+          lat: 30.2672,
+          lng: -97.7431,
+          is_default: true
+        })
+        .select()
+        .single();
+
+      console.log('✅ Created client address');
+    }
+
+    if (landlordUser) {
+      await supabase
+        .from('addresses')
+        .insert({
+          profile_id: landlordUser.id,
+          line1: '456 Property Lane',
+          city: 'Austin', 
+          state: 'TX',
+          zip: '78701',
+          lat: 30.2700,
+          lng: -97.7400,
+          is_default: true
+        });
+
+      console.log('✅ Created landlord address');
+    }
+
+    // Create contractor profiles
+    console.log('🔧 Creating contractor profiles...');
+    
+    const contractorUser = createdUsers.find(u => u.role === 'contractor');
+    
+    if (contractorUser) {
+      await supabase
+        .from('contractors')
+        .insert({
+          id: contractorUser.id,
+          company: 'Austin Plumbing Pro',
+          license_number: 'TX-PL-12345',
+          license_state: 'TX',
+          insurance_provider: 'State Farm Business',
+          insurance_policy_number: 'SF-BUS-789456',
+          insurance_expires_on: '2025-12-31',
+          background_check_status: 'approved',
+          verified: true
+        });
+
+      console.log('✅ Created contractor profile');
+    }
+
+    // Add more verified contractors
+    const additionalContractors = [
+      {
+        email: 'contractor2@prereno.demo',
+        company: 'Hill Country Handyman',
+        license: 'TX-HM-67890',
+        specialty: 'handyman'
+      },
+      {
+        email: 'contractor3@prereno.demo', 
+        company: 'Capitol Electric',
+        license: 'TX-EL-11111',
+        specialty: 'electrical'
+      },
+      {
+        email: 'contractor4@prereno.demo',
+        company: 'Lone Star Roofing',
+        license: 'TX-RF-22222', 
+        specialty: 'roof'
+      }
+    ];
+
+    for (const contractor of additionalContractors) {
+      const { data: authUser } = await supabase.auth.admin.createUser({
+        email: contractor.email,
+        password: DEMO_PASSWORD,
+        email_confirm: true
+      });
+
+      if (authUser.user) {
+        await supabase.from('profiles').upsert({
+          id: authUser.user.id,
+          role: 'contractor',
+          first_name: contractor.company.split(' ')[0],
+          last_name: 'Pro'
+        });
+
+        await supabase.from('contractors').insert({
+          id: authUser.user.id,
+          company: contractor.company,
+          license_number: contractor.license,
+          license_state: 'TX',
+          insurance_provider: 'General Liability Co',
+          insurance_policy_number: `GL-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
+          insurance_expires_on: '2025-12-31',
+          background_check_status: 'approved',
+          verified: true
+        });
+
+        console.log(`✅ Created contractor: ${contractor.company}`);
+      }
+    }
+
+    // Create sample jobs
+    console.log('📋 Creating sample jobs...');
+    
+    if (clientUser) {
+      const { data: clientAddress } = await supabase
+        .from('addresses')
+        .select('id')
+        .eq('profile_id', clientUser.id)
+        .single();
+
+      if (clientAddress) {
+        const sampleJobs = [
+          {
+            title: 'Kitchen Faucet Replacement',
+            description: 'Old faucet is leaking and needs replacement',
+            category: 'plumbing',
+            status: 'completed',
+            ai_tags: ['faucet_leak', 'under_sink_damage'],
+            ai_scope_md: '• Remove old faucet\n• Install new single-handle faucet\n• Test for leaks\n• Clean work area',
+            ai_client_price_cents: 24000,
+            contractor_net_cents: 19200,
+            photos: ['/demo/kitchen-faucet-before.jpg']
+          },
+          {
+            title: 'Bathroom Tile Repair', 
+            description: 'Several cracked tiles around bathtub',
+            category: 'handyman',
+            status: 'in_progress',
+            ai_tags: ['tile_crack', 'grout_damage'],
+            ai_scope_md: '• Remove damaged tiles\n• Apply new adhesive\n• Install replacement tiles\n• Regrout area',
+            ai_client_price_cents: 36000,
+            contractor_net_cents: 28800,
+            photos: ['/demo/bathroom-tile-before.jpg'],
+            renter_flag: true,
+            landlord_id: landlordUser?.id
+          },
+          {
+            title: 'Living Room Paint Touch-up',
+            description: 'Scuffs and nail holes need patching and painting',
+            category: 'paint', 
+            status: 'draft',
+            ai_tags: ['wall_scuffs', 'nail_holes'],
+            ai_scope_md: '• Patch nail holes with spackle\n• Sand smooth\n• Prime patched areas\n• Apply matching paint',
+            ai_client_price_cents: 18000,
+            contractor_net_cents: 14400,
+            photos: ['/demo/wall-damage-before.jpg']
+          }
+        ];
+
+        for (const job of sampleJobs) {
+          await supabase.from('jobs').insert({
+            client_id: clientUser.id,
+            address_id: clientAddress.id,
+            city: 'Austin',
+            zip: '78701',
+            margin_pct: 0.20,
+            rush_flag: false,
+            after_hours_flag: false,
+            ...job
+          });
+        }
+
+        console.log('✅ Created sample jobs');
+      }
+    }
+
+    // Create sample reviews
+    console.log('⭐ Creating sample reviews...');
+    
+    const { data: completedJobs } = await supabase
+      .from('jobs')
+      .select('id, client_id')
+      .eq('status', 'completed');
+
+    if (completedJobs && completedJobs.length > 0 && contractorUser) {
+      for (const job of completedJobs) {
+        await supabase.from('reviews').insert({
+          job_id: job.id,
+          rater_profile_id: job.client_id,
+          ratee_profile_id: contractorUser.id,
+          rating: Math.floor(Math.random() * 2) + 4, // 4-5 stars
+          comment: 'Great work! Professional and on time.'
+        });
+      }
+
+      console.log('✅ Created sample reviews');
+    }
+
+    // Verify cost factors exist (should be from migration)
+    console.log('💰 Verifying cost factors...');
+    
+    const { data: costFactors } = await supabase
+      .from('cost_factors')
+      .select('count')
+      .single();
+
+    if (!costFactors) {
+      console.log('Adding cost factors...');
+      
+      const cities = [
+        { zip: '78701', city: 'Austin', rates: { base: 8500 } },
+        { zip: '75201', city: 'Dallas', rates: { base: 8000 } },
+        { zip: '77001', city: 'Houston', rates: { base: 8200 } }
+      ];
+
+      const categories = ['plumbing', 'electrical', 'handyman', 'paint', 'roof', 'hvac', 'flooring'];
+
+      for (const city of cities) {
+        for (const category of categories) {
+          const multiplier = {
+            plumbing: 1.0,
+            electrical: 1.06,
+            handyman: 0.88,
+            paint: 0.76,
+            roof: 1.18,
+            hvac: 1.29,
+            flooring: 0.94
+          }[category] || 1.0;
+
+          await supabase.from('cost_factors').insert({
+            zip: city.zip,
+            category: category,
+            labor_rate_cents_per_hour: Math.round(city.rates.base * multiplier),
+            material_multiplier: 1.3,
+            small_job_min_cents: 15000
+          });
+        }
+      }
+
+      console.log('✅ Added cost factors');
+    }
+
+    // Create audit log entries
+    console.log('📝 Creating audit log entries...');
+    
+    await supabase.from('audit_logs').insert([
+      {
+        actor_profile_id: createdUsers[0]?.id,
+        action: 'database_seeded',
+        entity: 'system',
+        entity_id: null,
+        meta_json: {
+          users_created: createdUsers.length,
+          timestamp: new Date().toISOString()
+        }
+      }
+    ]);
+
+    console.log('✅ Database seeded successfully!');
+    console.log('\n🎯 Demo accounts created:');
+    console.log('Client: client@prereno.demo / demo123!');
+    console.log('Contractor: contractor@prereno.demo / demo123!');
+    console.log('Landlord: landlord@prereno.demo / demo123!');
+    console.log('Admin: admin@prereno.demo / demo123!');
+    console.log('\n🚀 You can now run: npm run dev');
+
+  } catch (error) {
+    console.error('❌ Seed failed:', error);
+    process.exit(1);
+  }
+}
+
+// Run if called directly
+if (import.meta.url === `file://${process.argv[1]}`) {
+  seedDatabase();
+}
+
+export default seedDatabase;
+
+---
+
+# server/src/scripts/migrate.ts - Database Migration Runner
+import { createClient } from '@supabase/supabase-js';
+import fs from 'fs/promises';
+import path from 'path';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+const supabase = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+async function runMigrations() {
+  console.log('🗃️  Running database migrations...');
+
+  try {
+    // Read the schema file
+    const schemaPath = path.join(process.cwd(), '../../database-schema.sql');
+    const schema = await fs.readFile(schemaPath, 'utf-8');
+
+    // Split into individual statements (basic approach)
+    const statements = schema
+      .split(';')
+      .map(s => s.trim())
+      .filter(s => s.length > 0 && !s.startsWith('--'))
+      .map(s => s + ';');
+
+    console.log(`Found ${statements.length} SQL statements to execute`);
+
+    // Execute each statement
+    for (let i = 0; i < statements.length; i++) {
+      const statement = statements[i];
+      
+      try {
+        const { error } = await supabase.rpc('exec_sql', { sql: statement });
+        
+        if (error && !error.message.includes('already exists')) {
+          console.warn(`Warning on statement ${i + 1}:`, error.message);
+        } else {
+          console.log(`✅ Executed statement ${i + 1}/${statements.length}`);
+        }
+      } catch (err) {
+        console.warn(`Warning on statement ${i + 1}:`, err);
+      }
+    }
+
+    console.log('✅ Migrations completed successfully!');
+    
+  } catch (error) {
+    console.error('❌ Migration failed:', error);
+    process.exit(1);
+  }
+}
+
+// Create exec_sql function in Supabase (run this in SQL editor first)
+const createExecFunction = `
+CREATE OR REPLACE FUNCTION exec_sql(sql TEXT)
+RETURNS VOID AS $$
+BEGIN
+  EXECUTE sql;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+`;
+
+// Run if called directly
+if (import.meta.url === `file://${process.argv[1]}`) {
+  console.log('Note: Make sure to run this SQL in Supabase first:');
+  console.log(createExecFunction);
+  console.log('\nThen run migrations...');
+  runMigrations();
+}
+
+export default runMigrations;
