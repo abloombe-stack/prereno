@@ -3,26 +3,6 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
-  server: {
-    port: 5173,
-    host: true
-  },
-  resolve: {
-    alias: {
-      '@': '/src'
-    }
-  },
-  optimizeDeps: {
-    include: ['react', 'react-dom', '@supabase/supabase-js']
-  },
-  build: {
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom'],
-          supabase: ['@supabase/supabase-js']
-        }
-      }
-    }
-  }
+  server: { hmr: { overlay: false } },
+  preview: { port: 5173 }
 })
