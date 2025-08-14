@@ -18,8 +18,8 @@ export interface Job {
   category: 'plumbing' | 'electrical' | 'paint' | 'handyman' | 'roof' | 'hvac' | 'flooring'
   status: 'draft' | 'quoting' | 'awaiting_accept' | 'accepted' | 'scheduled' | 'in_progress' | 'disputed' | 'completed' | 'cancelled'
   photos: string[]
-  detected_tags: string[]
-  scope_md?: string
+  ai_tags: string[]
+  ai_scope_md?: string
   client_price_cents: number
   contractor_net_cents: number
   platform_fee_cents: number

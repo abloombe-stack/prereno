@@ -12,11 +12,11 @@ export function LandingPage({ onGetStarted }: LandingPageProps) {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-24">
         <div className="text-center">
           <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6">
-            Instant Home Repairs
+            AI-Powered Home Repairs
             <span className="text-blue-600"> in 60 Seconds</span>
           </h1>
           <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
-            Scan, get instant quotes, book insured local pros, and pay securely. 
+            Scan, get instant AI quotes, book insured local pros, and pay securely. 
             Perfect for homeowners and renters.
           </p>
           <button 
@@ -44,7 +44,7 @@ export function LandingPage({ onGetStarted }: LandingPageProps) {
               },
               {
                 icon: Zap,
-                title: '2. Get Instant Quote',
+                title: '2. Get AI Quote',
                 description: 'Receive an instant, accurate price estimate in under 60 seconds'
               },
               {
@@ -72,7 +72,7 @@ export function LandingPage({ onGetStarted }: LandingPageProps) {
             {[
               { icon: Shield, label: 'Insured Pros', desc: 'All contractors verified & insured' },
               { icon: Star, label: '4.9/5 Rating', desc: 'Average customer satisfaction' },
-              { icon: Clock, label: '60 Second Quotes', desc: 'Instant smart estimates' },
+              { icon: Clock, label: '60 Second Quotes', desc: 'Instant AI-powered estimates' },
               { icon: DollarSign, label: 'Fair Pricing', desc: 'Transparent, competitive rates' }
             ].map(({ icon: Icon, label, desc }, index) => (
               <div key={index} className="text-center">
