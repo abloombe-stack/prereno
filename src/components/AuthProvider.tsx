@@ -1,14 +1,6 @@
 import React, { createContext, useContext } from 'react'
 import { useAuth } from '../hooks/useAuth'
-import type { User } from '../types'
-
-interface AuthContextType {
-  user: User | null
-  loading: boolean
-  signUp: (email: string, password: string, firstName: string, lastName: string) => Promise<any>
-  signIn: (email: string, password: string) => Promise<any>
-  signOut: () => Promise<void>
-}
+import type { AuthContextType } from '../types'
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 

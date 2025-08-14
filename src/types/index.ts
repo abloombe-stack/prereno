@@ -34,25 +34,10 @@ export interface Job {
   updated_at: string
 }
 
-export interface Contractor {
-  id: string
-  company: string
-  license_number: string
-  license_state: string
-  verified: boolean
-  rating: number
-  completed_jobs: number
-  created_at: string
-}
-
-export interface Offer {
-  id: string
-  job_id: string
-  contractor_id: string
-  status: 'pending' | 'accepted' | 'declined' | 'expired'
-  counter_amount_cents?: number
-  expires_at: string
-  accepted_at?: string
-  magic_token?: string
-  created_at: string
+export interface AuthContextType {
+  user: User | null
+  loading: boolean
+  signUp: (email: string, password: string, firstName: string, lastName: string) => Promise<any>
+  signIn: (email: string, password: string) => Promise<any>
+  signOut: () => Promise<void>
 }
