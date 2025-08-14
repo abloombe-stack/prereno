@@ -72,7 +72,7 @@ export function LandingPage({ onGetStarted }: LandingPageProps) {
             {[
               { icon: Shield, label: 'Insured Pros', desc: 'All contractors verified & insured' },
               { icon: Star, label: '4.9/5 Rating', desc: 'Average customer satisfaction' },
-              { icon: Clock, label: '60 Second Quotes', desc: 'Instant AI-powered estimates' },
+              { icon: Clock, label: '60 Second Quotes', desc: 'Instant smart estimates' },
               { icon: DollarSign, label: 'Fair Pricing', desc: 'Transparent, competitive rates' }
             ].map(({ icon: Icon, label, desc }, index) => (
               <div key={index} className="text-center">
