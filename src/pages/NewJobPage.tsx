@@ -161,7 +161,7 @@ export function NewJobPage() {
           <div>
             <h2 className="text-lg font-semibold mb-4">Upload Photos</h2>
             <p className="text-gray-600 mb-4">
-              Take clear photos of the repair area. Our AI will analyze them to provide an accurate quote.
+              Take clear photos of the repair area. Our system will analyze them to provide an accurate quote.
             </p>
             
             <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
@@ -317,7 +317,7 @@ export function NewJobPage() {
               onClick={analyzePhotos}
               className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700"
             >
-              Get AI Quote
+              Get Instant Quote
             </button>
           </div>
         </div>
@@ -326,12 +326,12 @@ export function NewJobPage() {
       {step === 3 && (
         <div className="space-y-6">
           <div>
-            <h2 className="text-lg font-semibold mb-4">AI Analysis</h2>
+            <h2 className="text-lg font-semibold mb-4">Analysis Complete</h2>
             
             {isAnalyzing ? (
               <div className="text-center py-8">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                <p className="text-gray-600">Analyzing photos with AI...</p>
+                <p className="text-gray-600">Analyzing photos...</p>
                 <p className="text-sm text-gray-500 mt-2">This usually takes 30-60 seconds</p>
               </div>
             ) : aiResults ? (
@@ -371,7 +371,7 @@ export function NewJobPage() {
               </div>
             ) : (
               <div className="text-center py-8">
-                <p className="text-gray-600">Click "Get AI Quote" to analyze your photos</p>
+                <p className="text-gray-600">Click "Get Instant Quote" to analyze your photos</p>
               </div>
             )}
           </div>

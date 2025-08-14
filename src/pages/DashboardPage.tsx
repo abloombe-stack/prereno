@@ -100,7 +100,7 @@ export function DashboardPage() {
             <Camera className="h-8 w-8 text-blue-600 mr-4" />
             <div className="text-left">
               <h3 className="font-medium">Start New Job</h3>
-              <p className="text-sm text-gray-600">Scan or upload photos for instant quote</p>
+              <p className="text-sm text-gray-600">Scan or upload photos for instant pricing</p>
             </div>
             <ChevronRight className="h-5 w-5 text-gray-400 ml-auto" />
           </button>

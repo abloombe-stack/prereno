@@ -1,0 +1,10 @@
+@@ .. @@
+         title: 'Kitchen Faucet Replacement',
+         description: 'Old faucet is leaking and needs replacement',
+         category: 'plumbing',
+         status: 'completed',
+-        ai_tags: ['faucet_leak', 'under_sink_damage'],
+-        ai_scope_md: '• Remove old faucet\n• Install new single-handle faucet\n• Test for leaks\n• Clean work area',
++        detected_tags: ['faucet_leak', 'under_sink_damage'],
++        scope_md: '• Remove old faucet\n• Install new single-handle faucet\n• Test for leaks\n• Clean work area',
+         client_price_cents: 24000,

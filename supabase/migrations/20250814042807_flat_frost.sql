@@ -1,0 +1,11 @@
+@@ .. @@
+   renter_flag BOOLEAN DEFAULT false,
+   landlord_id UUID REFERENCES profiles(id),
+   property_id UUID REFERENCES properties(id),
+-  ai_tags TEXT[] DEFAULT '{}',
+-  ai_scope_md TEXT,
+-  ai_confidence NUMERIC(3,2),
++  detected_tags TEXT[] DEFAULT '{}',
++  scope_md TEXT,
++  analysis_confidence NUMERIC(3,2),
+   client_price_cents INTEGER,
