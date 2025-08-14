@@ -39,10 +39,28 @@ export function useAuth() {
         .eq('id', userId)
         .single()
 
-      if (error) throw error
-      setUser(data)
+      if (error) {
+        console.error('Error fetching user profile:', error)
+        // Create a basic user object from auth if profile doesn't exist
+        const { data: { user: authUser } } = await supabase.auth.getUser()
+        if (authUser) {
+          setUser({
+            id: authUser.id,
+            email: authUser.email || '',
+            first_name: authUser.user_metadata?.first_name || '',
+            last_name: authUser.user_metadata?.last_name || '',
+            phone: authUser.user_metadata?.phone || '',
+            avatar_url: authUser.user_metadata?.avatar_url || '',
+            role: authUser.user_metadata?.role || 'client',
+            created_at: authUser.created_at,
+            updated_at: authUser.updated_at || authUser.created_at
+          })
+        }
+      } else {
+        setUser(data)
+      }
     } catch (error) {
-      console.error('Error fetching user profile:', error)
+      console.error('Error in fetchUserProfile:', error)
     } finally {
       setLoading(false)
     }
@@ -55,7 +73,8 @@ export function useAuth() {
       options: {
         data: {
           first_name: firstName,
-          last_name: lastName
+          last_name: lastName,
+          role: 'client'
         }
       }
     })

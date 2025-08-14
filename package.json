@@ -10,7 +10,9 @@
     "preview": "vite preview",
     "test": "vitest",
     "test:ui": "vitest --ui",
-    "fix-deps": "npm install && npm run dev"
+    "fix-deps": "npm install && npm run dev",
+    "clean-deps": "rm -rf node_modules package-lock.json && npm install",
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "@sentry/react": "^8.55.0",

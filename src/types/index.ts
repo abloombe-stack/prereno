@@ -5,6 +5,7 @@ export interface User {
   last_name: string
   phone?: string
   avatar_url?: string
+  role?: string
   created_at: string
   updated_at: string
 }
@@ -40,4 +41,25 @@ export interface AuthContextType {
   signUp: (email: string, password: string, firstName: string, lastName: string) => Promise<any>
   signIn: (email: string, password: string) => Promise<any>
   signOut: () => Promise<void>
+}
+
+export interface Contractor {
+  id: string
+  company: string
+  license_number: string
+  verified: boolean
+  rating: number
+  completed_jobs: number
+  avatar_url?: string
+}
+
+export interface Address {
+  id: string
+  user_id: string
+  line1: string
+  line2?: string
+  city: string
+  state: string
+  zip: string
+  is_default: boolean
 }
